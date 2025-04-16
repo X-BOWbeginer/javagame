@@ -7,6 +7,7 @@ import com.badlogic.gdx.Screen;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
+import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.physics.box2d.*;
 import com.badlogic.gdx.utils.viewport.FitViewport;
@@ -18,6 +19,8 @@ public class GameScreen implements Screen, ContactListener {
     private SpriteBatch batch;
     private Player player;
     private FitViewport viewport;
+    private ShapeRenderer shapeRenderer;
+    private HittableBlock testBlock;
 
     @Override
     public void show() {
@@ -28,8 +31,10 @@ public class GameScreen implements Screen, ContactListener {
         camera = new OrthographicCamera();
         viewport = new FitViewport(16, 9, camera);
         batch = new SpriteBatch();
+        shapeRenderer = new ShapeRenderer();
 
         player = new Player(world, 8, 5);
+        testBlock = new HittableBlock(8, 1, 1, 1);
 
         createBounds(0.5f);
     }
@@ -71,20 +76,35 @@ public class GameScreen implements Screen, ContactListener {
 
         boolean left = Gdx.input.isKeyPressed(Input.Keys.A);
         boolean right = Gdx.input.isKeyPressed(Input.Keys.D);
-        boolean jump = Gdx.input.isKeyJustPressed(Input.Keys.W);
-        boolean dash = Gdx.input.isKeyJustPressed(Input.Keys.SHIFT_LEFT);
+        boolean jump = Gdx.input.isKeyJustPressed(Input.Keys.W) || Gdx.input.isKeyJustPressed(Input.Keys.K);
+        boolean dash = Gdx.input.isKeyJustPressed(Input.Keys.L);
+        boolean attack = Gdx.input.isKeyJustPressed(Input.Keys.J);
+        boolean downAttack = attack && Gdx.input.isKeyPressed(Input.Keys.S);
 
-        player.update(left, right, jump, dash, delta);
+        player.update(left, right, jump, dash, attack, downAttack, delta);
+        testBlock.update(player.getCurrentHitbox());
+        testBlock.tick(delta);  // ✅ 每帧更新 hitTimer
+
+
         world.step(delta, 6, 2);
 
         camera.update();
+
         batch.setProjectionMatrix(camera.combined);
         batch.begin();
         player.draw(batch);
         batch.end();
 
+        shapeRenderer.setProjectionMatrix(camera.combined);
+        shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
+        player.drawHitbox(shapeRenderer);
+        testBlock.draw(shapeRenderer);  // ✅ 正确位置：在 shapeRenderer.begin() 和 end() 之间
+        shapeRenderer.end();
+
         debugRenderer.render(world, camera.combined);
     }
+
+
 
     @Override public void resize(int width, int height) { viewport.update(width, height, true); }
     @Override public void pause() {}
