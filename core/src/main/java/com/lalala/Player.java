@@ -61,6 +61,7 @@ public class Player {
 
         BodyDef bodyDef = new BodyDef();
         bodyDef.type = BodyDef.BodyType.DynamicBody;
+        bodyDef.fixedRotation = true; // 默认是 true，即不会旋转
         bodyDef.position.set(x, y);
         this.body = world.createBody(bodyDef);
 
@@ -186,7 +187,7 @@ public class Player {
                 if (attack2Animation.getKeyFrameIndex(stateTime) == 1) {
                     showAttackEffect = true;
                     attackEffectTimer = 0f;
-                    updateCurrentHitbox(attackEffect1, 2, pos);
+                    updateCurrentHitbox(attackEffect2, 2, pos);
                 }
                 if (attack2Animation.isAnimationFinished(stateTime)) {
                     isAttacking = false;
@@ -198,7 +199,7 @@ public class Player {
                 if (attackDownAnimation.getKeyFrameIndex(stateTime) == 1) {
                     showAttackEffect = true;
                     attackEffectTimer = 0f;
-                    updateCurrentHitbox(attackEffect1, -1, pos);
+                    updateCurrentHitbox(attackEffectDown, -1, pos);
                 }
                 if (attackDownAnimation.isAnimationFinished(stateTime)) {
                     isAttacking = false;
@@ -414,5 +415,9 @@ public class Player {
     public Rectangle getCurrentHitbox() {
         return currentHitbox;
     }
+    public Vector2 getPosition() {
+        return body.getPosition();
+    }
+
 
 }
