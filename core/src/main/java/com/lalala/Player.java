@@ -30,6 +30,11 @@ public class Player {
     private boolean isDashing = false;
     private float dashTimer = 0f;
     private int facingDirection = 1;
+    private int health = 2;
+    private int maxHealth = 20;
+    private float hitCooldown = 0f;
+    private final float HIT_INTERVAL = 0.5f;
+
 
     private boolean playingLand = false;
     private boolean justLanded = false;
@@ -129,6 +134,8 @@ public class Player {
     public void update(boolean moveLeft, boolean moveRight, boolean jumpPressed, boolean dashPressed, boolean attackPressed, boolean downAttackPressed, float delta) {
         Vector2 velocity = body.getLinearVelocity();
         stateTime += delta;
+        if (hitCooldown > 0) hitCooldown -= delta;
+
 
         if (downAttackPressed) {
             triggerDownAttack();
@@ -368,7 +375,15 @@ public class Player {
             }
             float drawX = pos.x - drawW / 2f;
             float drawY = pos.y - 0.5f;
+            if (hitCooldown > 0) {
+                // 每 0.1 秒闪烁一次（比如 0.3s 会是亮红，0.25s 会是正常）
+                if ((int)(hitCooldown * 10) % 2 == 0) {
+                    batch.setColor(1f, 0.3f, 0.3f, 1f); // 红色闪烁
+                }
+            }
             batch.draw(currentFrame, drawX, drawY, drawW, drawH);
+            batch.setColor(1f, 1f, 1f, 1f); // 恢复正常颜色
+
         }
     }
 
@@ -418,6 +433,44 @@ public class Player {
     public Vector2 getPosition() {
         return body.getPosition();
     }
+    public void drawHealthBar(ShapeRenderer renderer) {
+        Vector2 pos = body.getPosition();
+        float barWidth = 1f;
+        float barHeight = 0.1f;
+        float x = pos.x - barWidth / 2f;
+        float y = pos.y + 0.7f;
+
+        float ratio = (float) health / maxHealth;
+
+        renderer.setColor(0.3f, 0.3f, 0.3f, 1f);
+        renderer.rect(x, y, barWidth, barHeight);
+
+        renderer.setColor(0.1f, 1f, 0.2f, 1f);
+        renderer.rect(x, y, barWidth * ratio, barHeight);
+    }
+    public void tryHit(Rectangle bossHitbox) {
+        if (hitCooldown > 0 || isDashing) return; // ← 加上 dash 无敌判断
+
+        // 获取玩家自己的身体区域
+        Vector2 pos = body.getPosition();
+        Rectangle playerBodyBox = new Rectangle(pos.x - 0.5f, pos.y - 0.5f, 1f, 1f);
+
+        if (bossHitbox.overlaps(playerBodyBox)) {
+            health--;
+            hitCooldown = HIT_INTERVAL;
+            System.out.println("Player hit! HP: " + health);
+            if (health <= 0) {
+                // 死亡逻辑
+            }
+        }
+    }
+
+    public boolean isDead() {
+        return health <= 0;
+    }
+
+
+
 
 
 }

@@ -21,11 +21,16 @@ public class Boss {
     private World world;
     private Body body;
     private Vector2 position;
-    private Rectangle bounds;
+    //private Rectangle bounds;
     private int health = 5;
+    private float maxHealth = 5f;  // 用于绘制血条时的比例参考
+
     private boolean alive = true;
     private float hitCooldown = 0f;
     private final float HIT_INTERVAL = 0.5f;
+
+    private Rectangle currentHitbox = new Rectangle();
+
 
     private int actionCD = 0;
     private int jumpCD = 0;
@@ -76,7 +81,7 @@ public class Boss {
         this.width = firstFrame.getRegionWidth() / pixelsPerUnit;
         this.height = firstFrame.getRegionHeight() / pixelsPerUnit;
 
-        this.bounds = new Rectangle(x - width / 2f, y - height / 2f, width, height);
+        //this.bounds = new Rectangle(x - width / 2f, y - height / 2f, width, height);
 
         BodyDef bodyDef = new BodyDef();
         bodyDef.type = BodyDef.BodyType.DynamicBody;
@@ -136,6 +141,18 @@ public class Boss {
 
     public void update(Vector2 playerPos, float delta) {
         if (!alive) return;
+        // 每帧更新主角色的碰撞盒，用于和 Boss 的 body 判定接触伤害
+        Vector2 pos = body.getPosition();
+
+        if (currentFrame != null) {
+            float pixelsPerUnit = 100f; // 你之前贴图用的比例
+            float drawW = currentFrame.getRegionWidth() / pixelsPerUnit;
+            float drawH = currentFrame.getRegionHeight() / pixelsPerUnit;
+
+            currentHitbox.set(pos.x - drawW / 2f, pos.y -1f, drawW, drawH);
+        }
+
+
 
         stateTime += delta;
 
@@ -275,17 +292,24 @@ public class Boss {
         }
 
         position.set(body.getPosition());
-        bounds.set(position.x - width / 2f, position.y - height / 2f, width, height);
+        //bounds.set(position.x - width / 2f, position.y - height / 2f, width, height);
     }
 
     public void draw(SpriteBatch batch) {
         if (!alive || currentFrame == null) return;
+
+        if (hitCooldown > 0 && ((int)(hitCooldown * 10) % 2 == 0)) {
+            batch.setColor(1f, 0.3f, 0.3f, 1f); // 闪红
+        }
+
         batch.draw(currentFrame, position.x - width / 2f, position.y - height / 2f, width, height);
+        batch.setColor(1f, 1f, 1f, 1f); // 恢复颜色
     }
+
 
     public void tryHit(Rectangle hitbox) {
         if (!alive || hitCooldown > 0) return;
-        if (hitbox.overlaps(bounds)) {
+        if (hitbox.overlaps(currentHitbox)) {
             health--;
             hitCooldown = HIT_INTERVAL;
             if (health <= 0) alive = false;
@@ -303,4 +327,28 @@ public class Boss {
     public boolean isAlive() {
         return alive;
     }
+    public void drawHealthBar(ShapeRenderer shapeRenderer) {
+        if (!alive) return;
+
+        float barWidth = width;
+        float barHeight = 0.1f;
+        float x = position.x - barWidth / 2f;
+        float y = position.y + height / 2f + 0.1f; // 血条在 Boss 上方稍微偏移一点
+
+        float healthRatio = health / maxHealth;
+
+        // 背景（灰色）
+        shapeRenderer.setColor(0.3f, 0.3f, 0.3f, 1);
+        shapeRenderer.rect(x, y, barWidth, barHeight);
+
+        // 当前生命（红色）
+        shapeRenderer.setColor(1, 0, 0, 1);
+        shapeRenderer.rect(x, y, barWidth * healthRatio, barHeight);
+    }
+
+    public Rectangle getCurrentHitbox() {
+        return currentHitbox;
+    }
+
+
 }

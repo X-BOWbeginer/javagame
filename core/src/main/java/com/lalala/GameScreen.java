@@ -1,4 +1,3 @@
-// GameScreen.java
 package com.lalala;
 
 import com.badlogic.gdx.Gdx;
@@ -6,8 +5,10 @@ import com.badlogic.gdx.Input;
 import com.badlogic.gdx.Screen;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
+import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
+import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.physics.box2d.*;
 import com.badlogic.gdx.utils.viewport.FitViewport;
@@ -16,6 +17,8 @@ import static com.lalala.Boss.*;
 
 public class GameScreen implements Screen, ContactListener {
 
+    private final MainGame game;
+
     private World world;
     private Box2DDebugRenderer debugRenderer;
     private OrthographicCamera camera;
@@ -23,10 +26,15 @@ public class GameScreen implements Screen, ContactListener {
     private FitViewport viewport;
     private ShapeRenderer shapeRenderer;
     private Player player;
-    private HittableBlock testBlock;
     private Boss boss;
 
     private boolean left, right, jump, dash, attack, downAttack;
+    private boolean paused = false;
+    private float elapsedTime = 0f;  // 用于记录游戏时间
+
+    public GameScreen(MainGame game) {
+        this.game = game;
+    }
 
     @Override
     public void show() {
@@ -40,7 +48,6 @@ public class GameScreen implements Screen, ContactListener {
         shapeRenderer = new ShapeRenderer();
 
         player = new Player(world, 8, 5);
-        //testBlock = new HittableBlock(8, 1, 1, 1);
         boss = new Boss(world, 1, 5);
 
         createBounds(0.5f);
@@ -53,6 +60,9 @@ public class GameScreen implements Screen, ContactListener {
         dash = Gdx.input.isKeyJustPressed(Input.Keys.L);
         attack = Gdx.input.isKeyJustPressed(Input.Keys.J);
         downAttack = attack && Gdx.input.isKeyPressed(Input.Keys.S);
+        if (Gdx.input.isKeyJustPressed(Input.Keys.P)) {
+            paused = !paused;
+        }
     }
 
     private void logic(float delta) {
@@ -61,16 +71,24 @@ public class GameScreen implements Screen, ContactListener {
         if (boss != null) {
             boss.update(player.getPosition(), delta);
             boss.tryHit(player.getCurrentHitbox());
+            player.tryHit(boss.getCurrentHitbox());
 
             if (!boss.isAlive()) {
                 boss.dispose();
                 boss = null;
+                game.setScreen(new WinScreen(elapsedTime));  // 传递时间到 WinScreen
+                return;
             }
+
+        }
+
+        if (player.isDead()) {
+            game.setScreen(new LostScreen());
+            return;
         }
 
         world.step(delta, 6, 2);
     }
-
 
     private void draw() {
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
@@ -79,29 +97,55 @@ public class GameScreen implements Screen, ContactListener {
         camera.update();
         batch.setProjectionMatrix(camera.combined);
         batch.begin();
+
         player.draw(batch);
         if (boss != null) {
-        boss.draw(batch);
+            boss.draw(batch);
+        }
+        if (paused) {
+            // 字体较小可用 BitmapFont，或者放大一点
+            BitmapFont font = new BitmapFont();
+            font.setColor(1f, 1f, 1f, 1f);
+            font.draw(batch, "Paused - Press P to Resume", 300, 500);
         }
         batch.end();
 
         shapeRenderer.setProjectionMatrix(camera.combined);
         shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
         player.drawHitbox(shapeRenderer);
+        if (boss != null) {
+            boss.drawHealthBar(shapeRenderer);
+        }
+        player.drawHealthBar(shapeRenderer);
 
+        // 调试用的 hitbox
+        shapeRenderer.setColor(1f, 1f, 0f, 1f);
+        if (boss != null) {
+            Rectangle bossBox = boss.getCurrentHitbox();
+            shapeRenderer.rect(bossBox.x, bossBox.y, bossBox.width, bossBox.height);
+        }
+        Vector2 pos = player.getBody().getPosition();
+        shapeRenderer.setColor(0, 1, 0, 1);
+        shapeRenderer.rect(pos.x - 0.5f, pos.y - 0.5f, 1f, 1f);
 
         shapeRenderer.end();
 
         debugRenderer.render(world, camera.combined);
     }
 
-
     @Override
     public void render(float delta) {
         input();
-        logic(delta);
+
+        if (!paused) {
+            logic(delta);
+            elapsedTime += delta;
+        }
+
         draw();
     }
+
+
     private void createBounds(float margin) {
         float worldWidth = viewport.getWorldWidth();
         float worldHeight = viewport.getWorldHeight();
@@ -120,8 +164,7 @@ public class GameScreen implements Screen, ContactListener {
         fixtureDef.shape = edge;
         fixtureDef.friction = 0.8f;
         fixtureDef.filter.categoryBits = CATEGORY_GROUND;
-        fixtureDef.filter.maskBits = CATEGORY_PLAYER | CATEGORY_BOSS; // ✅ 允许 player 和 boss 碰撞
-
+        fixtureDef.filter.maskBits = CATEGORY_PLAYER | CATEGORY_BOSS;
 
         edge.set(new Vector2(left, bottom), new Vector2(right, bottom));
         bounds.createFixture(fixtureDef);
@@ -134,6 +177,7 @@ public class GameScreen implements Screen, ContactListener {
 
         edge.dispose();
     }
+
     @Override public void resize(int width, int height) { viewport.update(width, height, true); }
     @Override public void pause() {}
     @Override public void resume() {}
