@@ -5,6 +5,7 @@ import com.badlogic.gdx.Input;
 import com.badlogic.gdx.Screen;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
+import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
@@ -32,6 +33,9 @@ public class GameScreen implements Screen, ContactListener {
     private boolean paused = false;
     private float elapsedTime = 0f;  // 用于记录游戏时间
 
+    private Texture background;
+
+
     public GameScreen(MainGame game) {
         this.game = game;
     }
@@ -49,6 +53,7 @@ public class GameScreen implements Screen, ContactListener {
 
         player = new Player(world, 8, 5);
         boss = new Boss(world, 1, 5);
+        background = new Texture(Gdx.files.internal("background.png"));
 
         createBounds(0.5f);
     }
@@ -97,17 +102,12 @@ public class GameScreen implements Screen, ContactListener {
         camera.update();
         batch.setProjectionMatrix(camera.combined);
         batch.begin();
-
+        batch.draw(background, 0, 0, viewport.getWorldWidth(), viewport.getWorldHeight());
         player.draw(batch);
         if (boss != null) {
             boss.draw(batch);
         }
-        if (paused) {
-            // 字体较小可用 BitmapFont，或者放大一点
-            BitmapFont font = new BitmapFont();
-            font.setColor(1f, 1f, 1f, 1f);
-            font.draw(batch, "Paused - Press P to Resume", 300, 500);
-        }
+
         batch.end();
 
         shapeRenderer.setProjectionMatrix(camera.combined);
@@ -118,7 +118,7 @@ public class GameScreen implements Screen, ContactListener {
         }
         player.drawHealthBar(shapeRenderer);
 
-        // 调试用的 hitbox
+        // hitbox for debug
         shapeRenderer.setColor(1f, 1f, 0f, 1f);
         if (boss != null) {
             Rectangle bossBox = boss.getCurrentHitbox();
@@ -188,6 +188,8 @@ public class GameScreen implements Screen, ContactListener {
         world.dispose();
         debugRenderer.dispose();
         shapeRenderer.dispose();
+        background.dispose();
+
     }
 
     @Override public void beginContact(Contact contact) { player.beginContact(contact); }

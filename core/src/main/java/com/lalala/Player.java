@@ -30,7 +30,7 @@ public class Player {
     private boolean isDashing = false;
     private float dashTimer = 0f;
     private int facingDirection = 1;
-    private int health = 2;
+    private int health = 20;
     private int maxHealth = 20;
     private float hitCooldown = 0f;
     private final float HIT_INTERVAL = 0.5f;
@@ -45,7 +45,7 @@ public class Player {
     private boolean isAttacking = false;
     private int attackCombo = 0;
     private float attackTimer = 0f;
-    private final float attackCooldown = 0.5f;
+    //private final float attackCooldown = 0.5f;
 
     private TextureRegion attackEffect1;
     private TextureRegion attackEffect2;
@@ -66,7 +66,7 @@ public class Player {
 
         BodyDef bodyDef = new BodyDef();
         bodyDef.type = BodyDef.BodyType.DynamicBody;
-        bodyDef.fixedRotation = true; // 默认是 true，即不会旋转
+        bodyDef.fixedRotation = true;
         bodyDef.position.set(x, y);
         this.body = world.createBody(bodyDef);
 
@@ -156,7 +156,7 @@ public class Player {
             }
         }
 
-        currentHitbox.set(0, 0, 0, 0); // 默认清空 hitbox
+        currentHitbox.set(0, 0, 0, 0); // clear hitbox in default
 
         if (attackPressed) {
             if (!isAttacking) {
@@ -357,7 +357,7 @@ public class Player {
 
                     batch.draw(effect, x - w / 2f, y - h / 2f, w / 2f, h / 2f, w, h, 1f, 1f, 0f);
 
-                    // 设置 hitbox
+                    // set hitbox
                     currentHitbox.set(x - w / 2f, y - h / 2f, w, h);
                 }
             }
@@ -376,13 +376,13 @@ public class Player {
             float drawX = pos.x - drawW / 2f;
             float drawY = pos.y - 0.5f;
             if (hitCooldown > 0) {
-                // 每 0.1 秒闪烁一次（比如 0.3s 会是亮红，0.25s 会是正常）
+                // blinking
                 if ((int)(hitCooldown * 10) % 2 == 0) {
-                    batch.setColor(1f, 0.3f, 0.3f, 1f); // 红色闪烁
+                    batch.setColor(1f, 0.3f, 0.3f, 1f);
                 }
             }
             batch.draw(currentFrame, drawX, drawY, drawW, drawH);
-            batch.setColor(1f, 1f, 1f, 1f); // 恢复正常颜色
+            batch.setColor(1f, 1f, 1f, 1f);
 
         }
     }
@@ -449,9 +449,9 @@ public class Player {
         renderer.rect(x, y, barWidth * ratio, barHeight);
     }
     public void tryHit(Rectangle bossHitbox) {
-        if (hitCooldown > 0 || isDashing) return; // ← 加上 dash 无敌判断
+        if (hitCooldown > 0 || isDashing) return; // during dash, player is invincible.
 
-        // 获取玩家自己的身体区域
+
         Vector2 pos = body.getPosition();
         Rectangle playerBodyBox = new Rectangle(pos.x - 0.5f, pos.y - 0.5f, 1f, 1f);
 
@@ -460,7 +460,7 @@ public class Player {
             hitCooldown = HIT_INTERVAL;
             System.out.println("Player hit! HP: " + health);
             if (health <= 0) {
-                // 死亡逻辑
+                //dead!
             }
         }
     }

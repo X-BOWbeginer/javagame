@@ -7,6 +7,7 @@ import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.GlyphLayout;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
+import com.badlogic.gdx.graphics.g2d.freetype.FreeTypeFontGenerator;
 import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.badlogic.gdx.utils.viewport.Viewport;
 
@@ -21,8 +22,18 @@ public class LostScreen implements Screen {
     @Override
     public void show() {
         batch = new SpriteBatch();
-        font = new BitmapFont();
-        font.getData().setScale(5f);
+
+        // font
+        FreeTypeFontGenerator generator = new FreeTypeFontGenerator(Gdx.files.internal("font.ttf"));
+        FreeTypeFontGenerator.FreeTypeFontParameter parameter = new FreeTypeFontGenerator.FreeTypeFontParameter();
+        parameter.size = 64;
+        parameter.color.set(1f, 1f, 1f, 1f);
+        parameter.borderWidth = 2f;
+        parameter.borderColor.set(0f, 0f, 0f, 1f);
+
+        font = generator.generateFont(parameter);
+        generator.dispose();
+
         layout = new GlyphLayout();
 
         camera = new OrthographicCamera();
@@ -32,8 +43,9 @@ public class LostScreen implements Screen {
 
     @Override
     public void render(float delta) {
-        Gdx.gl.glClearColor(0f, 0f, 0f, 1f); // 黑色背景
+        Gdx.gl.glClearColor(0f, 0f, 0f, 1f);
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
+
 
         camera.update();
         batch.setProjectionMatrix(camera.combined);
@@ -48,19 +60,14 @@ public class LostScreen implements Screen {
         batch.end();
 
         if (Gdx.input.isTouched()) {
-            Gdx.app.exit(); // 点击退出
+            Gdx.app.exit();
         }
     }
 
-    @Override
-    public void resize(int width, int height) {
-        viewport.update(width, height, true);
-    }
-
+    @Override public void resize(int width, int height) { viewport.update(width, height, true); }
     @Override public void pause() {}
     @Override public void resume() {}
     @Override public void hide() {}
-
     @Override
     public void dispose() {
         batch.dispose();

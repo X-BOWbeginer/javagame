@@ -23,7 +23,7 @@ public class Boss {
     private Vector2 position;
     //private Rectangle bounds;
     private int health = 5;
-    private float maxHealth = 5f;  // 用于绘制血条时的比例参考
+    private float maxHealth = 5f;
 
     private boolean alive = true;
     private float hitCooldown = 0f;
@@ -141,11 +141,11 @@ public class Boss {
 
     public void update(Vector2 playerPos, float delta) {
         if (!alive) return;
-        // 每帧更新主角色的碰撞盒，用于和 Boss 的 body 判定接触伤害
+        // detect hit
         Vector2 pos = body.getPosition();
 
         if (currentFrame != null) {
-            float pixelsPerUnit = 100f; // 你之前贴图用的比例
+            float pixelsPerUnit = 100f;
             float drawW = currentFrame.getRegionWidth() / pixelsPerUnit;
             float drawH = currentFrame.getRegionHeight() / pixelsPerUnit;
 
@@ -187,7 +187,7 @@ public class Boss {
                 directionForJumpDash = dx >= 0 ? 1f : -1f;
                 facingRight = dx >= 0;
                 Vector2 dashDir = new Vector2(playerPos.x - position.x, 0).nor();
-                jumpDashVelocity.set(dashDir.scl(15f).x, -5f);  // 冲刺方向和速度只记录一次
+                jumpDashVelocity.set(dashDir.scl(15f).x, -5f);
             } else if (vy < 0 && stateTime > 0.15f) {
                 body.setLinearVelocity(jumpDashVelocity);
                 currentAnimation = facingRight ? jumpDashRightAnimation : jumpDashLeftAnimation;
@@ -242,10 +242,10 @@ public class Boss {
             float distanceX = playerPos.x - position.x;
             facingRight = distanceX >= 0;
 
-            if (random.nextFloat() < 0.25f) { // 25% 概率 idle
+            if (random.nextFloat() < 0.25f) { // 25% chance idle
                 isIdleWaiting = true;
                 stateTime = 0f;
-                actionCD = 30; // 空闲等待一小段时间
+                actionCD = 30;
                 return;
             }
 
@@ -299,11 +299,11 @@ public class Boss {
         if (!alive || currentFrame == null) return;
 
         if (hitCooldown > 0 && ((int)(hitCooldown * 10) % 2 == 0)) {
-            batch.setColor(1f, 0.3f, 0.3f, 1f); // 闪红
+            batch.setColor(1f, 0.3f, 0.3f, 1f); // blinking red
         }
 
         batch.draw(currentFrame, position.x - width / 2f, position.y - height / 2f, width, height);
-        batch.setColor(1f, 1f, 1f, 1f); // 恢复颜色
+        batch.setColor(1f, 1f, 1f, 1f);
     }
 
 
@@ -333,15 +333,13 @@ public class Boss {
         float barWidth = width;
         float barHeight = 0.1f;
         float x = position.x - barWidth / 2f;
-        float y = position.y + height / 2f + 0.1f; // 血条在 Boss 上方稍微偏移一点
+        float y = position.y + height / 2f + 0.1f; // pos of health bar
 
         float healthRatio = health / maxHealth;
 
-        // 背景（灰色）
         shapeRenderer.setColor(0.3f, 0.3f, 0.3f, 1);
         shapeRenderer.rect(x, y, barWidth, barHeight);
 
-        // 当前生命（红色）
         shapeRenderer.setColor(1, 0, 0, 1);
         shapeRenderer.rect(x, y, barWidth * healthRatio, barHeight);
     }
