@@ -18,10 +18,21 @@ public class Boss {
     public static final short CATEGORY_BOSS   = 0x0002;
     public static final short CATEGORY_GROUND = 0x0004;
 
+    // State machine states
+    private enum State {
+        IDLE,
+        WALKING,
+        JUMPING,
+        LANDING,
+        DASHING,
+        JUMP_DASHING,
+        IDLE_WAITING
+    }
+
+    private State currentState = State.IDLE;
     private World world;
     private Body body;
     private Vector2 position;
-    //private Rectangle bounds;
     private int health = 5;
     private float maxHealth = 5f;
 
@@ -31,23 +42,24 @@ public class Boss {
 
     private Rectangle currentHitbox = new Rectangle();
 
-
     private int actionCD = 0;
     private int jumpCD = 0;
     private int dashCD = 0;
     private int jumpFinalCD = 0;
 
     private float stateTime = 0f;
-    private boolean isDashing = false;
-    private boolean isJumping = false;
-    private boolean isIdleWaiting = false;
-    private boolean isJumpDashing = false;
-    private boolean hasJumpedForDash = false;
     private boolean facingRight = true;
+    private boolean isMovingWhileWalking = false; // Flag to determine if walking involves movement
 
     private float width;
     private float height;
 
+    // Jump dash related variables
+    private boolean hasJumpedForDash = false;
+    private float directionForJumpDash = 1f;
+    private Vector2 jumpDashVelocity = new Vector2();
+
+    // Animations
     private Animation<TextureRegion> dashLeftAnimation;
     private Animation<TextureRegion> dashRightAnimation;
     private Animation<TextureRegion> jumpLeftAnimation;
@@ -65,14 +77,12 @@ public class Boss {
     private TextureRegion currentFrame;
 
     private Random random = new Random();
-    private float directionForJumpDash = 1f;
-    private Vector2 jumpDashVelocity = new Vector2();
-
 
     public Boss(World world, float x, float y) {
         this.world = world;
         this.position = new Vector2(x, y);
 
+        // Load animations
         idleLeftAnimation = loadAnimation("Boss/Idle", 1, 0.1f, Animation.PlayMode.LOOP);
         idleRightAnimation = loadAnimation("Boss/IdleR", 1, 0.1f, Animation.PlayMode.LOOP);
 
@@ -81,8 +91,7 @@ public class Boss {
         this.width = firstFrame.getRegionWidth() / pixelsPerUnit;
         this.height = firstFrame.getRegionHeight() / pixelsPerUnit;
 
-        //this.bounds = new Rectangle(x - width / 2f, y - height / 2f, width, height);
-
+        // Create physics body
         BodyDef bodyDef = new BodyDef();
         bodyDef.type = BodyDef.BodyType.DynamicBody;
         bodyDef.fixedRotation = true;
@@ -102,6 +111,7 @@ public class Boss {
         body.createFixture(fixtureDef);
         shape.dispose();
 
+        // Load all animations
         dashLeftAnimation = loadAnimation("Boss/Dash", 11, 0.05f, Animation.PlayMode.NORMAL);
         dashRightAnimation = loadAnimation("Boss/DashR", 11, 0.05f, Animation.PlayMode.NORMAL);
         jumpLeftAnimation = loadAnimation("Boss/Jump", 28, 0.05f, Animation.PlayMode.NORMAL);
@@ -112,6 +122,10 @@ public class Boss {
         landRightAnimation = loadAnimation("Boss/LandR", 5, 0.05f, Animation.PlayMode.NORMAL);
         jumpDashLeftAnimation = loadAnimation("Boss/JumpDash", 28, 0.05f, Animation.PlayMode.NORMAL);
         jumpDashRightAnimation = loadAnimation("Boss/JumpDashR", 28, 0.05f, Animation.PlayMode.NORMAL);
+
+        // Initialize with idle animation
+        currentAnimation = idleRightAnimation;
+        currentFrame = currentAnimation.getKeyFrame(0);
     }
 
     private Animation<TextureRegion> loadAnimation(String path, int count, float frameDuration, Animation.PlayMode playMode) {
@@ -125,6 +139,7 @@ public class Boss {
         anim.setPlayMode(playMode);
         return anim;
     }
+
     private boolean isOnGround() {
         final boolean[] result = {false};
         Vector2 start = new Vector2(body.getPosition().x, body.getPosition().y - height / 2f);
@@ -141,21 +156,19 @@ public class Boss {
 
     public void update(Vector2 playerPos, float delta) {
         if (!alive) return;
-        // detect hit
-        Vector2 pos = body.getPosition();
 
+        // Update hitbox
+        Vector2 pos = body.getPosition();
         if (currentFrame != null) {
             float pixelsPerUnit = 100f;
             float drawW = currentFrame.getRegionWidth() / pixelsPerUnit;
             float drawH = currentFrame.getRegionHeight() / pixelsPerUnit;
-
-            currentHitbox.set(pos.x - drawW / 2f, pos.y -1f, drawW, drawH);
+            currentHitbox.set(pos.x - drawW / 2f, pos.y - 1f, drawW, drawH);
         }
-
-
 
         stateTime += delta;
 
+        // Update cooldowns
         if (hitCooldown > 0) hitCooldown -= delta;
         if (actionCD > 0) actionCD--;
         if (jumpCD > 0) jumpCD--;
@@ -164,135 +177,196 @@ public class Boss {
 
         position.set(body.getPosition());
 
-        if (isDashing) {
-            currentAnimation = facingRight ? dashRightAnimation : dashLeftAnimation;
-            currentFrame = currentAnimation.getKeyFrame(stateTime);
-            if (currentAnimation.isAnimationFinished(stateTime)) {
-                isDashing = false;
-                body.setGravityScale(1);
-                isIdleWaiting = true;
-                stateTime = 0f;
-                body.setLinearVelocity(0, 0);
-            }
-            return;
-        }
+        // State machine implementation
+        switch (currentState) {
+            case DASHING:
+                updateDashingState();
+                break;
 
-        if (isJumpDashing) {
-            float vy = body.getLinearVelocity().y;
-            if (!hasJumpedForDash) {
-                body.setLinearVelocity(body.getLinearVelocity().x, 12f);
-                hasJumpedForDash = true;
-                stateTime = 0f;
-                float dx = playerPos.x - position.x;
-                directionForJumpDash = dx >= 0 ? 1f : -1f;
-                facingRight = dx >= 0;
-                Vector2 dashDir = new Vector2(playerPos.x - position.x, 0).nor();
-                jumpDashVelocity.set(dashDir.scl(15f).x, -5f);
-            } else if (vy < 0 && stateTime > 0.15f) {
-                body.setLinearVelocity(jumpDashVelocity);
-                currentAnimation = facingRight ? jumpDashRightAnimation : jumpDashLeftAnimation;
-                currentFrame = currentAnimation.getKeyFrame(stateTime);
-                if (isOnGround() || currentAnimation.isAnimationFinished(stateTime)) {
-                    isJumpDashing = false;
-                    hasJumpedForDash = false;
-                    isIdleWaiting = true;
-                    stateTime = 0f;
-                    body.setLinearVelocity(0, 0);
+            case JUMP_DASHING:
+                updateJumpDashingState(playerPos);
+                break;
+
+            case JUMPING:
+                updateJumpingState();
+                break;
+
+            case IDLE_WAITING:
+                updateIdleWaitingState();
+                break;
+
+            case WALKING:
+                if (isMovingWhileWalking) {
+                    Vector2 vel = body.getLinearVelocity();
+                    body.setLinearVelocity((facingRight ? 6f : -6f), vel.y);
                 }
-                return;
-            }
-            currentAnimation = facingRight ? jumpDashRightAnimation : jumpDashLeftAnimation;
-            currentFrame = currentAnimation.getKeyFrame(stateTime);
-            return;
-        }
+                currentFrame = currentAnimation.getKeyFrame(stateTime, true);
 
-
-        if (isJumping) {
-            float vy = body.getLinearVelocity().y;
-            if (vy == 0) {
-                isJumping = false;
-                isIdleWaiting = true;
-                stateTime = 0f;
-            } else if (vy < 0) {
-                currentAnimation = facingRight ? landRightAnimation : landLeftAnimation;
-                currentFrame = currentAnimation.getKeyFrame(stateTime);
-                if (currentAnimation.isAnimationFinished(stateTime)) {
-                    currentFrame = currentAnimation.getKeyFrames()[currentAnimation.getKeyFrames().length - 1];
-                }
-                return;
-            } else {
-                currentAnimation = facingRight ? jumpRightAnimation : jumpLeftAnimation;
-                currentFrame = currentAnimation.getKeyFrame(stateTime);
-                return;
-            }
-        }
-
-        if (isIdleWaiting) {
-            currentAnimation = facingRight ? idleRightAnimation : idleLeftAnimation;
-            currentFrame = currentAnimation.getKeyFrame(stateTime, true);
-            if (stateTime >= 0.5f) {
-                isIdleWaiting = false;
-                stateTime = 0f;
-            }
-            return;
-        }
-
-        if (actionCD == 0) {
-            int index = random.nextInt(3);
-            float distanceX = playerPos.x - position.x;
-            facingRight = distanceX >= 0;
-
-            if (random.nextFloat() < 0.25f) { // 25% chance idle
-                isIdleWaiting = true;
-                stateTime = 0f;
-                actionCD = 30;
-                return;
-            }
-
-            if (Math.abs(distanceX) < 3f) {
-                Vector2 vel = body.getLinearVelocity();
-                body.setLinearVelocity((facingRight ? 6f : -6f), vel.y);
-                Animation<TextureRegion> newAnimation = facingRight ? walkRightAnimation : walkLeftAnimation;
-                if (currentAnimation != newAnimation) {
-                    currentAnimation = newAnimation;
+                //
+                if (actionCD == 0) {
+                    currentState = State.IDLE_WAITING;
+                    isMovingWhileWalking = false;
                     stateTime = 0f;
                 }
-                actionCD = 30;
-            } else if (index == 0 && jumpCD == 0) {
-                isJumping = true;
-                stateTime = 0f;
-                Vector2 vel = body.getLinearVelocity();
-                body.setLinearVelocity(facingRight?7:-7, 10f);
-                jumpCD = 60;
-                actionCD = 50;
-            } else if (index == 1 && dashCD == 0) {
-                isDashing = true;
-                stateTime = 0f;
-                body.setLinearVelocity((facingRight ? 15f : -15f), 0f);
-                body.setGravityScale(0);
-                dashCD = (int)(dashLeftAnimation.getAnimationDuration() / delta);
-                actionCD = 500;
-            } else if (index == 2 && jumpFinalCD == 0) {
-                isJumpDashing = true;
-                hasJumpedForDash = false;
-                stateTime = 0f;
-                jumpFinalCD = 100;
-                actionCD = 500;
-            } else {
-                isIdleWaiting = true;
-                stateTime = 0f;
-            }
-        } else {
-            if (currentAnimation == walkLeftAnimation || currentAnimation == walkRightAnimation) {
-                currentFrame = currentAnimation.getKeyFrame(stateTime, true);
-            } else {
-                currentAnimation = facingRight ? idleRightAnimation : idleLeftAnimation;
-                currentFrame = currentAnimation.getKeyFrame(stateTime, true);
-            }
+                break;
+
+
+            case IDLE:
+            default:
+                // Choose next action if timer is up
+                if (actionCD == 0) {
+                    chooseNextAction(playerPos);
+                } else {
+                    // Continue with current animation
+                    if (currentAnimation == walkLeftAnimation || currentAnimation == walkRightAnimation) {
+                        currentFrame = currentAnimation.getKeyFrame(stateTime, true);
+                    } else {
+                        // Default to idle animation
+                        currentAnimation = facingRight ? idleRightAnimation : idleLeftAnimation;
+                        currentFrame = currentAnimation.getKeyFrame(stateTime, true);
+                    }
+                }
+                break;
         }
 
         position.set(body.getPosition());
-        //bounds.set(position.x - width / 2f, position.y - height / 2f, width, height);
+    }
+
+    private void updateDashingState() {
+        currentAnimation = facingRight ? dashRightAnimation : dashLeftAnimation;
+        currentFrame = currentAnimation.getKeyFrame(stateTime);
+
+        if (currentAnimation.isAnimationFinished(stateTime)) {
+            currentState = State.IDLE_WAITING;
+            body.setGravityScale(1);
+            stateTime = 0f;
+            body.setLinearVelocity(0, 0);
+        }
+    }
+
+    private void updateJumpDashingState(Vector2 playerPos) {
+        float vy = body.getLinearVelocity().y;
+
+        if (!hasJumpedForDash) {
+            // Initial jump phase
+            body.setLinearVelocity(body.getLinearVelocity().x, 12f);
+            hasJumpedForDash = true;
+            stateTime = 0f;
+
+            float dx = playerPos.x - position.x;
+            directionForJumpDash = dx >= 0 ? 1f : -1f;
+            facingRight = dx >= 0;
+
+            Vector2 dashDir = new Vector2(playerPos.x - position.x, 0).nor();
+            jumpDashVelocity.set(dashDir.scl(15f).x, -5f);
+        } else if (vy < 0 && stateTime > 0.15f) {
+            // Dash down phase
+            body.setLinearVelocity(jumpDashVelocity);
+            currentAnimation = facingRight ? jumpDashRightAnimation : jumpDashLeftAnimation;
+            currentFrame = currentAnimation.getKeyFrame(stateTime);
+
+            if (isOnGround() || currentAnimation.isAnimationFinished(stateTime)) {
+                currentState = State.IDLE_WAITING;
+                hasJumpedForDash = false;
+                stateTime = 0f;
+                body.setLinearVelocity(0, 0);
+            }
+        }
+
+        currentAnimation = facingRight ? jumpDashRightAnimation : jumpDashLeftAnimation;
+        currentFrame = currentAnimation.getKeyFrame(stateTime);
+    }
+
+    private void updateJumpingState() {
+        float vy = body.getLinearVelocity().y;
+
+        if (vy == 0) {
+            currentState = State.IDLE_WAITING;
+            stateTime = 0f;
+        } else if (vy < 0) {
+            // Landing phase
+            currentAnimation = facingRight ? landRightAnimation : landLeftAnimation;
+            currentFrame = currentAnimation.getKeyFrame(stateTime);
+
+            if (currentAnimation.isAnimationFinished(stateTime)) {
+                currentFrame = currentAnimation.getKeyFrames()[currentAnimation.getKeyFrames().length - 1];
+            }
+        } else {
+            // Rising phase
+            currentAnimation = facingRight ? jumpRightAnimation : jumpLeftAnimation;
+            currentFrame = currentAnimation.getKeyFrame(stateTime);
+        }
+    }
+
+    private void updateIdleWaitingState() {
+        currentAnimation = facingRight ? idleRightAnimation : idleLeftAnimation;
+        currentFrame = currentAnimation.getKeyFrame(stateTime, true);
+
+        if (stateTime >= 0.5f) {
+            currentState = State.IDLE;
+            stateTime = 0f;
+        }
+    }
+
+    private void chooseNextAction(Vector2 playerPos) {
+        int index = random.nextInt(3);
+        float distanceX = playerPos.x - position.x;
+        facingRight = distanceX >= 0;
+
+        if (random.nextFloat() < 0.25f) { // 25% chance idle
+            currentState = State.IDLE_WAITING;
+            stateTime = 0f;
+            actionCD = 30;
+            return;
+        }
+
+        if (Math.abs(distanceX) < 3f) {
+            // Move away from player when player is close
+            Vector2 vel = body.getLinearVelocity();
+            body.setLinearVelocity((facingRight ? 6f : -6f), vel.y);
+            isMovingWhileWalking = true;
+
+            currentState = State.WALKING;
+            Animation<TextureRegion> newAnimation = facingRight ? walkRightAnimation : walkLeftAnimation;
+            if (currentAnimation != newAnimation) {
+                currentAnimation = newAnimation;
+                stateTime = 0f;
+            }
+            actionCD = 120;
+        } else if (index == 0 && jumpCD == 0) {
+            // Jump
+            currentState = State.JUMPING;
+            stateTime = 0f;
+            Vector2 vel = body.getLinearVelocity();
+            body.setLinearVelocity(facingRight ? 7 : -7, 10f);
+            jumpCD = 60;
+            actionCD = 50;
+        } else if (index == 1 && dashCD == 0) {
+            // Dash
+            currentState = State.DASHING;
+            stateTime = 0f;
+            body.setLinearVelocity((facingRight ? 15f : -15f), 0f);
+            body.setGravityScale(0);
+            dashCD = (int)(dashLeftAnimation.getAnimationDuration() / Gdx.graphics.getDeltaTime());
+            actionCD = 500;
+        } else if (index == 2 && jumpFinalCD == 0) {
+            // Jump dash
+            currentState = State.JUMP_DASHING;
+            hasJumpedForDash = false;
+            stateTime = 0f;
+            jumpFinalCD = 100;
+            actionCD = 500;
+        } else {
+            // Just play walking animation without moving (matches original behavior)
+            currentState = State.WALKING;
+            isMovingWhileWalking = false;
+            Animation<TextureRegion> newAnimation = facingRight ? walkRightAnimation : walkLeftAnimation;
+            if (currentAnimation != newAnimation) {
+                currentAnimation = newAnimation;
+                stateTime = 0f;
+            }
+            actionCD = 30;
+        }
     }
 
     public void draw(SpriteBatch batch) {
@@ -305,7 +379,6 @@ public class Boss {
         batch.draw(currentFrame, position.x - width / 2f, position.y - height / 2f, width, height);
         batch.setColor(1f, 1f, 1f, 1f);
     }
-
 
     public void tryHit(Rectangle hitbox) {
         if (!alive || hitCooldown > 0) return;
@@ -327,6 +400,7 @@ public class Boss {
     public boolean isAlive() {
         return alive;
     }
+
     public void drawHealthBar(ShapeRenderer shapeRenderer) {
         if (!alive) return;
 
@@ -347,6 +421,4 @@ public class Boss {
     public Rectangle getCurrentHitbox() {
         return currentHitbox;
     }
-
-
 }
